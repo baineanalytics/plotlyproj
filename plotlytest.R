@@ -22,59 +22,53 @@ gg <- ggplot(data = dbcount, aes(x = Database, y = Seizures)) +
         legend.text = element_text(family = "Gill Sans MT", size = 18))
 
 p <- ggplotly(gg)
-p
 
 Sys.setenv("plotly_username"="C4ADSdata")
 Sys.setenv("plotly_api_key"="jmaBJZcHAqtJwP8H2FGn")
 
 plotly_POST(p, filename = "totaldbseizures")
 
-#Total Seizures Timeline
+#Information Quality
 
 tot <- read.csv("tot.csv")
 
-ivory <- data.frame(subset(tot, Database == "Ivory"))
+tot[is.na(tot)] <- ""
 
-ivyrs <- data.frame(table(ivory$Year))
-names(ivyrs) <- c("year", "Ivory")
+info <- NULL
 
-rhino <- data.frame(subset(tot, Database == "Rhino Horn"))
+for (j in 1:length(tot)){
+  data <- tot[j]
+  name <- names(data)
+  wifdata <- sum(data != "")
+  dataperc <- data.frame((wifdata/773)*100)
+  names(dataperc) <- name
+  info <- dplyr::bind_cols(info, dataperc)
+}
 
-ryrs <- data.frame(table(rhino$Year))
-names(ryrs) <- c("year", "Rhino Horn")
+infoq <- info[,3:16]
+infoq <- infoq[,-2]
+names(infoq) <- c("Date", "Seizure Airport", "Seizure Location", "Origin", "Transit", "Destination", "Weight", "Number", "Airline", "Mode of Transport", "Method of Detection", "Obfuscation Method", "Species")
 
-rep <- data.frame(subset(tot, Database == "Reptiles"))
+meltedinfo <- melt(infoq)
+meltedinfo$Availability <- paste(round(meltedinfo$value, 1),"%",sep="")
+meltedinfo$text <- paste("Category:", meltedinfo$variable,
+                         "</br>Availability:",meltedinfo$Availability)
 
-repyrs <- data.frame(table(rep$Year))
-names(repyrs) <- c("year", "Reptiles")
-
-bird <- data.frame(subset(tot, Database == "Birds"))
-
-byrs <- data.frame(table(bird$Year))
-names(byrs) <- c("year", "Birds")
-
-timeline <- merge(merge(merge(byrs, repyrs, by = "year"), ryrs, by = "year"), ivyrs, by = "year")
-timelinemelt <- melt(timeline)
-timelinemelt$variable <- factor(timelinemelt$variable, levels = c("Ivory", "Rhino Horn", "Reptiles", "Birds"))
-colnames(timelinemelt) <- c("Year", "Database", "Seizure.Count")
-
-gg <- ggplot(data = timelinemelt, aes(x = Year, y = Seizure.Count, group = Database, color = Database)) + 
-  geom_line(lwd = 1.5) + 
-  scale_color_manual(values = c('darkorange', 'red', 'green4', 'steelblue3')) +
-  geom_point(aes(y=Seizure.Count), color = "Black", size = 2) + 
-  theme_bw() +
-  labs(x = "Year", y = "Seizure Count", group = "Database") +
-  theme(panel.grid.minor = element_blank(),
-        axis.title = element_blank(),
+gg <- ggplot(data = meltedinfo, aes(x = reorder(variable,value), y = value, z = Availability, text = text)) + 
+  geom_bar(stat = 'identity', color = "black", fill = "maroon") +
+  #geom_text(aes(label = labs), hjust = 1.1, family = "Gill Sans MT", size = 5) +
+  theme_bw() + coord_flip() +
+  scale_y_continuous(limits = c(0, 100), breaks = c(0,25,50,75,100), labels = c("0%", "25%", "50%", "75%", "100%")) +
+  labs(x = "Variable", y = "VALUE") +
+  theme(panel.grid.minor = element_blank(), 
+        panel.grid.major.y = element_blank(), 
+        panel.grid.major.x = element_line(size = .5), 
+        axis.title = element_blank(), 
         axis.text = element_text(family = "Gill Sans MT", size = 15),
-        panel.grid.major.x = element_blank(),
-        panel.grid.major.y = element_line(size = .5),
         legend.title = element_blank(),
         legend.text = element_text(family = "Gill Sans MT", size = 15))
 
-p <- ggplotly(gg, tooltip = c("group", "x", "y"))
+p <- ggplotly(tooltip = "text")
+p
 
-Sys.setenv("plotly_username"="C4ADSdata")
-Sys.setenv("plotly_api_key"="jmaBJZcHAqtJwP8H2FGn")
-
-plotly_POST(p, filename = "totaldbseizures_timeline")
+plotly_POST(p, filename = "info_availability")

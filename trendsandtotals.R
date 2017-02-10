@@ -202,3 +202,8 @@ p <- ggplotly(gg, tooltip = "text")
 p
 
 plotly_POST(p, filename = "seizuresbycountry")
+
+
+##Country Enforcement Index##
+
+

@@ -1,10 +1,13 @@
-##AIRPORT TOTALS##
-
-setwd("E:/ROUTES/Year One Airport Seizure Analysis/R")
-
 library(ggplot2)
 library(dplyr)
 library(extrafont)
+library(plotly)
+library(reshape2)
+
+Sys.setenv("plotly_username"="C4ADSdata")
+Sys.setenv("plotly_api_key"="jmaBJZcHAqtJwP8H2FGn")
+
+#######################TOTALS#########################
 
 tot <- read.csv("tot.csv")
 dbref <- c("Ivory", "Rhino Horn", "Reptiles", "Birds")
@@ -19,12 +22,13 @@ sums <- sums %>% filter(sum>4)
 airports <- subset(airports, airport %in% sums$airport)
 airports <- dplyr::full_join(sums,airports)
 airports <- transform(airports, airport = reorder(airport, sum))
+airports$text <- paste("Airport:", airports$airport,
+                       "</br>Database:", airports$db,
+                       "</br>Seizure Count:", airports$Freq)
 
 colors <- c("darkorange", "red", "green4", "steelblue3")
 
-png(file = "uptot_airports.png", units="in", width=11, height=8.5, res=300)
-
-ggplot(data = airports, aes(x = airport, y = Freq, fill = db)) + 
+gg <- ggplot(data = airports, aes(x = airport, y = Freq, fill = db, text=text)) + 
   geom_bar(stat = "identity", position = "stack") +
   theme_bw() + coord_flip() +
   scale_fill_manual(values = colors) +
@@ -36,13 +40,12 @@ ggplot(data = airports, aes(x = airport, y = Freq, fill = db)) +
         legend.title = element_blank(),
         legend.text = element_text(family = "Gill Sans MT", size = 12))
 
-dev.off()
+p <- ggplotly(gg, tooltip = "text")
 
+plotly_POST(p, filename = "airportseizuresbydb")
 
-##TRANSIT##
+##Country Level Transit Info##
 
-
-library(dplyr)
 trans <- read.csv("transittots.csv")
 trans[trans == ""] <- NA
 
@@ -84,11 +87,21 @@ require(reshape2)
 
 stack <- melt(data = transitgraph, id = "country")
 
-png(file = "uptots_transit.png", units="in", width=11, height=8.5, res=300)
+ref <- c("Origin", "Transit", "Destination")
 
-require(ggplot2)
+sums <- stack %>% group_by(country) %>% summarise(sums = sum(value))
+stack <-  merge(sums,stack,all = TRUE)
+stack$variable <- factor(stack$variable, levels = ref)
+stack$prop <- stack$value/stack$sums
+stack$per <- paste(round(stack$prop*100,1),"%", sep = "")
 
-ggplot(data = stack, aes(x = country, y = value, fill =variable)) + 
+stack$text <- paste("Country: ", stack$country,
+                    "</br>Point in Supply Chain: ", stack$variable,
+                    "</br>Number of Trafficking Instances: ", stack$value,
+                    "</br>Total Trafficking Instances for the Country: ", stack$sums,
+                    "</br>Percentage of Total Instances: ", stack$per, sep = "")
+
+gg <- ggplot(data = stack, aes(x = country, y = value, fill =variable, text=text)) + 
   geom_bar(stat = "identity") + theme_bw() + coord_flip() +
   scale_fill_brewer(palette = 'Set1') +
   theme(panel.grid.minor = element_blank(), 
@@ -99,10 +112,11 @@ ggplot(data = stack, aes(x = country, y = value, fill =variable)) +
         legend.title = element_blank(),
         legend.text = element_text(family = "Gill Sans MT", size = 15))
 
-dev.off()
+p <- ggplotly(gg, tooltip = "text")
 
+plotly_POST(p, filename = "countrytransitstack")
 
-##IVORY##
+#########################IVORY###########################
 
 #Transit#
 
@@ -173,16 +187,25 @@ transitgraphmelt <- transform(transitgraphmelt, country = reorder(country, sum))
 
 require(reshape2)
 melted <- melt(data = transitgraphmelt[,1:4], id = "country")
+x <- c("Origin", "Transit", "Destination")
+sums <- melted %>% group_by(country) %>% summarise(x = sum(value))
+melted <-  merge(sums,melted,all = TRUE)
+melted$variable <- factor(melted$variable, levels = x)
+melted$prop <- melted$value/melted$x
+melted$per <- paste(round(melted$prop*100,1),"%", sep = "")
 
-png(file = "upiv_trans.png", units="in", width=5, height=4, res=300)
+melted$text <- paste("Country: ", melted$country,
+                     "</br>Point in Supply Chain: ", melted$variable,
+                     "</br>Number of Trafficking Instances: ", melted$value,
+                     "</br>Total Trafficking Instances for the Country: ", melted$x,
+                     "</br>Percentage of Total Instances: ", melted$per, sep = "")
 
 require(ggplot2)
-ggplot(data = melted, aes(x = country, y = value, fill =variable)) + 
+gg <- ggplot(data = melted, aes(x = country, y = value, fill = variable, text=text)) + 
   geom_bar(stat = "identity") + 
-  scale_fill_brewer(palette = 'Oranges') + 
+  scale_fill_brewer(palette = 'Oranges', direction = 1) + 
   theme_bw() + 
   coord_flip() +
-  #scale_y_continuous(limits = c(0, 60), breaks = c(0,20,40,60)) +
   theme(panel.grid.minor = element_blank(), panel.grid.major.y = element_blank(), 
         axis.title = element_blank(), 
         axis.text = element_text(family = "Gill Sans MT", size = 11),
@@ -190,8 +213,9 @@ ggplot(data = melted, aes(x = country, y = value, fill =variable)) +
         legend.text = element_text(family = "Gill Sans MT", size = 11),
         panel.grid.major.x = element_line(size = .75))
 
-dev.off()
+p <- ggplotly(gg, tooltip = "text")
 
+plotly_POST(p, filename = "ivorytransitinfo")
 
 ##top airports## 
 
@@ -206,10 +230,10 @@ air[air == 0] <- NA
 air <- air[complete.cases(air),]
 names(air) <- c("airport", "sum")
 airports <- subset(air, sum>3)
+airports$text <- paste("Airport:",airports$airport,
+                       "</br>Seizure Count:",airports$sum)
 
-png(file = "upiv_airports.png", units="in", width=5, height=4, res=300)
-
-ggplot(airports, aes(x = reorder(airport, sum), y = (sum))) +
+gg <- ggplot(airports, aes(x = reorder(airport, sum), y = (sum), text=text)) +
   geom_bar(stat = "identity", color = "black", fill = "darkorange", width = .85, size = .4) +
   coord_flip() +
   theme_bw() +
@@ -219,13 +243,13 @@ ggplot(airports, aes(x = reorder(airport, sum), y = (sum))) +
         panel.grid.major.y = element_blank(),
         panel.grid.major.x = element_line(size = .75))
 
-dev.off()
+p <- ggplotly(gg, tooltip = "text")
 
+plotly_POST(p, filename = "ivoryairportseizures")
 
-##RHINO HORN##
+#######################RHINO HORN#########################
 
 #Transit#
-
 
 trans <- read.csv("transittots.csv")
 
@@ -289,15 +313,25 @@ transitgraphmelt <- transform(transitgraphmelt, country = reorder(country, sum))
 
 require(reshape2)
 melted <- melt(data = transitgraphmelt[,1:4], id = "country")
+x <- c("Origin", "Transit", "Destination")
+sums <- melted %>% group_by(country) %>% summarise(x = sum(value))
+melted <-  merge(sums,melted,all = TRUE)
+melted$variable <- factor(melted$variable, levels = x)
+melted$prop <- melted$value/melted$x
+melted$per <- paste(round(melted$prop*100,1),"%", sep = "")
 
-png(file = "uprh_trans.png", units="in", width=5, height=4, res=300)
+melted$text <- paste("Country: ", melted$country,
+                     "</br>Point in Supply Chain: ", melted$variable,
+                     "</br>Number of Trafficking Instances: ", melted$value,
+                     "</br>Total Trafficking Instances for the Country: ", melted$x,
+                     "</br>Percentage of Total Instances: ", melted$per, sep = "")
 
-require(ggplot2)
-
-ggplot(data = melted, aes(x = country, y = value, fill =variable)) + 
+gg <- ggplot(data = melted, aes(x = country, y = value, fill =variable, text=text)) + 
   geom_bar(stat = "identity") + scale_fill_brewer(palette = 'Reds') + 
   theme_bw() + coord_flip() +
-  theme(panel.grid.minor = element_blank(), 
+  ggtitle("Air Transit Rhino Horn Trafficking - Country Level Transit Information") +
+  theme(plot.title = element_text(family = "Gill Sans MT", size = 13),
+        panel.grid.minor = element_blank(), 
         panel.grid.major.y = element_blank(), 
         axis.title = element_blank(), 
         axis.text = element_text(family = "Gill Sans MT", size = 11),
@@ -305,8 +339,9 @@ ggplot(data = melted, aes(x = country, y = value, fill =variable)) +
         legend.text = element_text(family = "Gill Sans MT", size = 11),
         panel.grid.major.x = element_line(size = .75))
 
-dev.off()
+p <- ggplotly(gg, tooltip = "text")
 
+plotly_POST(p, filename = "rhtransitinfo")
 
 #Airports#
 
@@ -322,24 +357,30 @@ air[air == 0] <- NA
 names(air) <- c("airport", "sum")
 air <- air[!is.na(air$sum),]
 airports <- subset(air, sum>2)
+airports$text <- paste("Airport:",airports$airport,
+                       "</br>Seizure Count:", airports$sum)
 
-png(file = "uprh_airports.png", units="in", width=5, height=4, res=300)
 
-ggplot(airports, aes(x = reorder(airport, sum), y = (sum))) +
+gg <- ggplot(airports, aes(x = reorder(airport, sum), y = (sum), text=text)) +
   geom_bar(stat = "identity", color = "black", fill = "red", width = .85, size = .4) +
   scale_y_continuous(limits = c(0, 12), breaks = c(0,3,6,9,12)) +
   coord_flip() +
   theme_bw() +
-  theme(axis.title = element_blank(),
+  ggtitle("Rhino Horn Seizures in Airports") +
+  theme(plot.title = element_text(family = "Gill Sans MT", size = 13),
+        axis.title = element_blank(),
         axis.text = element_text(family = "Gill Sans MT", size = 11),
         panel.grid.minor = element_blank(),
         panel.grid.major.x = element_line(size = .75),
         panel.grid.major.y = element_blank())
 
-dev.off()
+p <- ggplotly(gg, tooltip = "text")
 
+Sys.setenv("plotly_username"="C4ADSdata")
+Sys.setenv("plotly_api_key"="jmaBJZcHAqtJwP8H2FGn")
+plotly_POST(p, filename = "rhairportseizures")
 
-##REPTILES##
+#######################REPTILES#########################
 
 #Transit#
 
@@ -406,14 +447,25 @@ transitgraphmelt <- transform(transitgraphmelt, country = reorder(country, sum))
 require(reshape2)
 melted <- melt(data = transitgraphmelt[,1:4], id = "country")
 
-png(file = "uprep_trans.png", units="in", width=5, height=4, res=300)
+x <- c("Origin", "Transit", "Destination")
+sums <- melted %>% group_by(country) %>% summarise(x = sum(value))
+melted <-  merge(sums,melted,all = TRUE)
+melted$variable <- factor(melted$variable, levels = x)
+melted$prop <- melted$value/melted$x
+melted$per <- paste(round(melted$prop*100,1),"%", sep = "")
 
+melted$text <- paste("Country: ", melted$country,
+                     "</br>Point in Supply Chain: ", melted$variable,
+                     "</br>Number of Trafficking Instances: ", melted$value,
+                     "</br>Total Trafficking Instances for the Country: ", melted$x,
+                     "</br>Percentage of Total Instances: ", melted$per, sep = "")
 require(ggplot2)
-ggplot(data = melted, aes(x = country, y = value, fill =variable)) + 
+gg <- ggplot(data = melted, aes(x = country, y = value, fill =variable, text=text)) + 
   geom_bar(stat = "identity") + scale_fill_brewer(palette = 'Greens') + 
   theme_bw() + coord_flip() +
-  #scale_y_continuous(limits = c(0, 60), breaks = c(0,20,40,60)) +
-  theme(panel.grid.minor = element_blank(), 
+  ggtitle("Air Transit Reptile Trafficking - Country Level Transit Information") +
+  theme(plot.title = element_text(family = "Gill Sans MT", size = 13),
+        panel.grid.minor = element_blank(), 
         panel.grid.major.y = element_blank(), 
         axis.title = element_blank(), 
         axis.text = element_text(family = "Gill Sans MT", size = 11),
@@ -421,7 +473,11 @@ ggplot(data = melted, aes(x = country, y = value, fill =variable)) +
         legend.text = element_text(family = "Gill Sans MT", size = 11),
         panel.grid.major.x = element_line(size = .75))
 
-dev.off()
+p <- ggplotly(gg, tooltip = "text")
+
+Sys.setenv("plotly_username"="C4ADSdata")
+Sys.setenv("plotly_api_key"="jmaBJZcHAqtJwP8H2FGn")
+plotly_POST(p, filename = "reptransitinfo")
 
 #Airports#
 
@@ -434,10 +490,10 @@ air <- data.frame(table(air$Location))
 names(air) <- c("airport", "sum")
 airports <- subset(air, sum>2)
 airports <- airports[!airports$airport == "",]
+airports$text <- paste("Airport:",airports$airport,
+                       "</br>Seizure Count:", airports$sum)
 
-png(file = "uprep_airports.png", units="in", width=5, height=4, res=300)
-
-ggplot(airports, aes(x = reorder(airport, sum), y = (sum))) +
+gg <- ggplot(airports, aes(x = reorder(airport, sum), y = (sum), text=text)) +
   geom_bar(stat = "identity", width = .85, size = .4, color = "black", fill = "green4") +
   coord_flip() +
   theme_bw() +
@@ -447,13 +503,15 @@ ggplot(airports, aes(x = reorder(airport, sum), y = (sum))) +
         panel.grid.major.y = element_blank(),
         panel.grid.major.x = element_line(size = .75))
 
-dev.off()
+p <- ggplotly(gg, tooltip = "text")
 
+Sys.setenv("plotly_username"="C4ADSdata")
+Sys.setenv("plotly_api_key"="jmaBJZcHAqtJwP8H2FGn")
+plotly_POST(p, filename = "repairportseizures")
 
-##BIRDS##
+#######################BIRDS#########################
 
 #Transit#
-
 
 trans <- read.csv("transittots.csv")
 
@@ -518,15 +576,28 @@ require(reshape2)
 
 melted <- melt(data = transitgraphmelt[,1:4], id = "country")
 
-png(file = "upb_trans.png", units="in", width=5, height=4, res=300)
+x <- c("Origin", "Transit", "Destination")
+sums <- melted %>% group_by(country) %>% summarise(x = sum(value))
+melted <-  merge(sums,melted,all = TRUE)
+melted$variable <- factor(melted$variable, levels = x)
+melted$prop <- melted$value/melted$x
+melted$per <- paste(round(melted$prop*100,1),"%", sep = "")
+
+melted$text <- paste("Country: ", melted$country,
+                     "</br>Point in Supply Chain: ", melted$variable,
+                     "</br>Number of Trafficking Instances: ", melted$value,
+                     "</br>Total Trafficking Instances for the Country: ", melted$x,
+                     "</br>Percentage of Total Instances: ", melted$per, sep = "")
 
 require(ggplot2)
 
-ggplot(data = melted, aes(x = country, y = value, fill =variable)) + 
+gg <- ggplot(data = melted, aes(x = country, y = value, fill =variable, text=text)) + 
   geom_bar(stat = "identity") + scale_fill_brewer(palette = 'Blues') + 
   theme_bw() + coord_flip() +
   scale_y_continuous(limits = c(0, 30), breaks = c(0,10,20,30)) +
-  theme(panel.grid.minor = element_blank(), 
+  ggtitle("Air Transit Reptile Trafficking - Country Level Transit Information") +
+  theme(plot.title = element_text(family = "Gill Sans MT", size = 13),
+        panel.grid.minor = element_blank(), 
         panel.grid.major.y = element_blank(), 
         axis.title = element_blank(), 
         legend.title = element_blank(),
@@ -534,11 +605,13 @@ ggplot(data = melted, aes(x = country, y = value, fill =variable)) +
         panel.grid.major.x = element_line(size = .75),
         axis.text = element_text(family = "Gill Sans MT", size = 11))
 
-dev.off()
+p <- ggplotly(gg, tooltip = "text")
+
+Sys.setenv("plotly_username"="C4ADSdata")
+Sys.setenv("plotly_api_key"="jmaBJZcHAqtJwP8H2FGn")
+plotly_POST(p, filename = "birdtransitinfo")
 
 #Airports#
-
-setwd("E:/ROUTES/Year One Airport Seizure Analysis/R")
 
 tot <- read.csv("tot.csv")
 
@@ -551,17 +624,24 @@ air <- air[complete.cases(air),]
 names(air) <- c("airport", "sum")
 air <- subset(air, sum>2)
 
-png(file = "upb_airports.png", units="in", width=5, height=4, res=300)
+air$text <- paste("Airport:",air$airport,
+                       "</br>Seizure Count:", air$sum)
 
-ggplot(air, aes(x = reorder(airport, sum), y = (sum))) +
+gg <- ggplot(air, aes(x = reorder(airport,sum), y = sum, text=text)) +
   geom_bar(stat = "identity", width = .85, size = .4 , color = "black", fill = "steelblue3") +
   coord_flip() +
   theme_bw() +
   scale_y_continuous(limits = c(0, 15), breaks = c(0,5,10,15)) +
-  theme(axis.title = element_blank(),
+  ggtitle("Bird Seizures in Airports") +
+  theme(plot.title = element_text(family = "Gill Sans MT", size = 13),
+        axis.title = element_blank(),
         axis.text = element_text(family = "Gill Sans MT", size = 11),
         panel.grid.minor = element_blank(),
         panel.grid.major.y = element_blank(),
         panel.grid.major.x = element_line(size = .75))
 
-dev.off()
+p <- ggplotly(gg, tooltip = "text")
+
+Sys.setenv("plotly_username"="C4ADSdata")
+Sys.setenv("plotly_api_key"="jmaBJZcHAqtJwP8H2FGn")
+plotly_POST(p, filename = "birdairportseizures")

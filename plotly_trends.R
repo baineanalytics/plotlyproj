@@ -6,149 +6,7 @@ library(dplyr)
 Sys.setenv("plotly_username"="C4ADSdata")
 Sys.setenv("plotly_api_key"="jmaBJZcHAqtJwP8H2FGn")
 
-
-#Totals heatmap########### NOT WORKING ATM
-
-trans <- read.csv("transittots_heat.csv")
-
-countrylist <- data.frame(unique(trans$Unique))
-names(countrylist) <- c("country")
-countrylist <- data.frame(countrylist[!is.na(countrylist$country),])
-names(countrylist) <- c("country")
-
-seizloc <- data.frame(table(trans$Seizure.Country, exclude = ""))
-
-orig1 <- data.frame(table(trans$Origin.Country1, exclude = ""))
-names(orig1) <- c("country", "o1")
-orig2 <- data.frame(table(trans$Origin.Country2, exclude = ""))
-names(orig2) <- c("country", "o2")
-orig3 <- data.frame(table(trans$Origin.Country3, exclude = ""))
-names(orig3) <- c("country", "o3")
-
-trans1 <- data.frame(table(trans$Transit.Country1, exclude = ""))
-names(trans1) <- c("country", "t1")
-trans2 <- data.frame(table(trans$Transit.Country2, exclude = ""))
-names(trans2) <- c("country", "t2")
-trans3 <- data.frame(table(trans$Transit.Country3, exclude = ""))
-names(trans3) <- c("country", "t3")
-trans4 <- data.frame(table(trans$Transit.Country4, exclude = ""))
-names(trans4) <- c("country", "t4")
-
-dest1 <- data.frame(table(trans$Destination.Country1, exclude = ""))
-names(dest1) <- c("country", "d1")
-dest2 <- data.frame(table(trans$Destination.Country2, exclude = ""))
-names(dest2) <- c("country", "d2")
-dest3 <- data.frame(table(trans$Destination.Country3, exclude = ""))
-names(dest3) <- c("country", "d3")
-
-seiz <- merge(countrylist, seizloc, by.x = "country", by.y = "Var1", all = T)
-seiz <- data.frame(seiz[!is.na(seiz$country),])
-names(seiz) <- c("country", "seizure")
-
-orig <- merge(merge(merge(countrylist, orig1, by = "country", all = T), orig2, by = "country", all = T), orig3, by = "country", all = T)
-orig$Origin <- rowSums(orig[,2:4], na.rm = T)
-orig <- data.frame(orig[!is.na(orig$country),])
-orig <- data.frame(subset(orig, select = c("country", "Origin")))
-
-transit <- merge(merge(merge(merge(countrylist, trans1, by = "country", all = T), trans2, by = "country", all = T), trans3, by = "country", all = T), trans4, by = "country", all = T)
-transit$Transit <- rowSums(transit[,2:5], na.rm = T)
-transit <- data.frame(subset(transit, select = c("country", "Transit")))
-
-dest <- merge(merge(merge(countrylist, dest1, by = "country", all = T), dest2, by = "country", all = T), dest3, by = "country", all = T)
-dest$Destination <- rowSums(dest[,2:4], na.rm = T)
-dest <- data.frame(subset(dest, select = c("country", "Destination")))
-
-transitgraph <- merge(merge(orig, transit, by = "country", all = T), dest, by = "country", all = T)
-transitgraph[is.na(transitgraph)] <- 0
-transitgraph$sum <- rowSums(transitgraph[,2:4])
-
-
-transitgraph <- data.frame(subset(transitgraph, sum > 0))
-
-library(maps)
-library(RColorBrewer)
-library(ggalt)
-
-world_map <- map_data("world")
-world_map <- subset(world_map, region!="Antarctica")
-
-heat <- merge(transitgraph, world_map, by.x = "country", by.y = "region", all = T)
-heat <- arrange(heat, group, order)
-
-theme_clean <- function(base_size = 12) {
-  require(grid)
-  theme_grey(base_size) %+replace%
-    theme(
-      axis.title = element_blank(),
-      axis.text = element_blank(),
-      axis.ticks = element_blank(),
-      panel.background = element_blank(),
-      panel.grid = element_blank(),
-      panel.margin = unit(0, "lines"),
-      plot.margin = unit(c(0,0,0,0),"lines"),
-      complete = TRUE)
-}
-
-gg <- ggplot(data = heat, aes(x = long, y = lat, group = group, fill = sum)) + 
-  geom_map(dat = world_map, map = world_map, aes(map_id = region), color = "gray20", fill = "white", lwd = .05) + 
-  theme_clean() +
-  coord_proj("+proj=robin")
-
-gg <- gg + geom_map(map = world_map, aes(map_id = country, fill = sum), color = "gray20", lwd = .05) + 
-  scale_fill_distiller(palette = "YlOrRd", na.value = "gray87", direction = 1) + 
-  theme(legend.position = c(0.5, 0.12),
-        legend.direction = "horizontal",
-        legend.background = element_rect(color = "grey20"),
-        legend.title = element_blank(),
-        legend.text = element_text(family = "Gill Sans MT"),
-        legend.key.height = unit(.08,"in"),
-        legend.key.width = unit(.25,"in"),
-        panel.background = element_rect(size = 2, color = "black"))
-gg
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-xlim <- c(-170,170)
-ylim <- c(-170,170)
-
-gg <- ggplot(data = heat, aes(x = long, y = lat, group = group, fill = sum)) + 
-  geom_map(dat = world_map, map = world_map, aes(map_id = region), color = "gray20", fill = "white", lwd = .05) + 
-  theme_clean() 
-
-gg <- gg + geom_map(map = world_map, aes(map_id = country, fill = sum, group = group), color = "gray20", lwd = .05) + 
-  scale_fill_distiller(palette = "YlOrRd", na.value = "gray87", direction = 1) + coord_map(xlim=xlim,ylim=ylim) +
-  theme(legend.position = c(0.5, 0.12),
-        legend.direction = "horizontal",
-        legend.background = element_rect(color = "grey20"),
-        legend.title = element_blank(),
-        legend.text = element_text(family = "Gill Sans MT"),
-        legend.key.height = unit(.08,"in"),
-        legend.key.width = unit(.25,"in"),
-        panel.background = element_rect(size = 2, color = "black"))
-
-gg 
-
+##################TOTALS###################
 
 #SEIZURE TIMELINE#
 
@@ -431,7 +289,7 @@ nonum <- subset(ivory, select = c("Weight..kg.", "Year"), na.strings=c("","NA"))
 require(dplyr)
 
 empty_as_na <- function(x){
-  if("factor" %in% class(x)) x <- as.character(x) ## since ifelse wont work with factors
+  if("factor" %in% class(x)) x <- as.character(x)
   ifelse(as.character(x)!="", x, NA)
 }
 
@@ -462,8 +320,6 @@ gg <- ggplot(ivavg, aes(x = Year, text=text)) +
 
 p <- ggplotly(gg, tooltip = "text")
 plotly_POST(p, filename = "ivavgweighttimeline")
-
-
 
 
 
